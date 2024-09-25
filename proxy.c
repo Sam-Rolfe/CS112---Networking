@@ -58,13 +58,28 @@ int main(void) {
             exit(EXIT_FAILURE);
         }
 
-        // Read in contents from client connection to buffer
+        // Read contents from client connection into buffer
         memset(buffer, 0, BUFFER_SIZE);
         int bytes_read = read(proxy_connection_socket, buffer, BUFFER_SIZE - 1);
         if(bytes_read < 0) {
             perror("Error reading from connection socket");
             exit(EXIT_FAILURE);
         }
+
+        // Parse contents of client request into HTTP request components
+        char method[BUFFER_SIZE], url[BUFFER_SIZE], version[BUFFER_SIZE];
+        sscanf(buffer, "%s %s %s", method, url, version);
+
+        // Confirm request is GET request (as per project specs)
+        if (strncmp(method, "GET", 3) != 0) {
+            perror("Proxy server only accepts 'GET' requests");
+            close(proxy_connection_socket);
+            continue;
+        }
+
+        
+
+
 
         printf("Printing buffer: %s\n", buffer);
     }
