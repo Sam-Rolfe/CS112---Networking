@@ -25,7 +25,7 @@
 int main(int argc, char *argv[]) {
     // Declare variables
     int PROXY_PORT;
-    int proxy_listening_socket, proxy_connection_socket;
+    int proxy_listening_socket, client_socket;
     struct sockaddr_in proxy_addr, client_addr; // Struct for handling internet addresses
     socklen_t client_addr_size = sizeof(client_addr);
     char buffer[BUFFER_SIZE];
@@ -36,7 +36,6 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
     PROXY_PORT = atoi(argv[1]);
-    printf("PROXY_PORT: %d\n", PROXY_PORT);
 
     // Create socket for proxy
     proxy_listening_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -50,10 +49,9 @@ int main(int argc, char *argv[]) {
     memset(&proxy_addr, 0, sizeof(proxy_addr)); // Set structure to 0's, ensuring sin_zero is all zeros
     proxy_addr.sin_family = AF_INET;            // Set address family to IPv4
     proxy_addr.sin_addr.s_addr = INADDR_ANY;    // Set IP address to all IP addresses of machine
-    proxy_addr.sin_port = htons(PROXY_PORT);          // Set port number
+    proxy_addr.sin_port = htons(PROXY_PORT);    // Set port number
 
-    // Set socket options to allow reuse of the address (fixes "address already in use" bug).
-    // Consider removing for submission
+    // Set socket options to allow reuse of the address (fixes "address already in use" bug)
     int opt = 1;
     if (setsockopt(proxy_listening_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         perror("Error setting socket options");
@@ -68,25 +66,27 @@ int main(int argc, char *argv[]) {
     }
 
     // Listen for incoming connections requests on "listening socket"
-    listen(proxy_listening_socket, 3);
+    listen(proxy_listening_socket, 5);
     printf("Listening for incoming connection requests on port %d...\n", PROXY_PORT);
 
     while(1) {
         // Yield CPU and await connection request. Upon reception,
         // bind to dedicated socket
-        proxy_connection_socket = accept(proxy_listening_socket, (struct sockaddr *) &client_addr, &client_addr_size);
-        if(proxy_connection_socket  < 0){
+        client_socket = accept(proxy_listening_socket, (struct sockaddr *) &client_addr, &client_addr_size);
+        if(client_socket  < 0){
             perror("Error creating connection socket");
             exit(EXIT_FAILURE);
         }
 
         // Read contents from client connection into buffer
         memset(buffer, 0, BUFFER_SIZE);
-        int bytes_read = read(proxy_connection_socket, buffer, BUFFER_SIZE - 1);
+        int bytes_read = read(client_socket, buffer, BUFFER_SIZE - 1);
         if(bytes_read < 0) {
             perror("Error reading from connection socket");
             exit(EXIT_FAILURE);
         }
+
+        printf("Buffer received from client: \n%s", buffer);
 
         // Parse contents of client request into HTTP request components
         char method[BUFFER_SIZE], url[BUFFER_SIZE], version[BUFFER_SIZE];
@@ -95,28 +95,29 @@ int main(int argc, char *argv[]) {
         // Confirm request is GET request (as per project specs)
         if (strncmp(method, "GET", 3) != 0) {
             perror("Proxy server only accepts 'GET' requests");
-            close(proxy_connection_socket);
+            close(client_socket);
             continue;
         }
-
-        printf("Printing client HTTP request: \n%s\n", buffer);
 
         // Get the hostname, path, and port number (if present) from URL
         int SERVER_PORT = DEFAULT_SERVER_PORT;
         char hostname[BUFFER_SIZE], path[BUFFER_SIZE];
-        sscanf(url, "http://%[^:/]:%d%s", hostname, &SERVER_PORT, path);
+        int n_objects_assigned = sscanf(url, "http://%[^:/]%*[:]%d%[^\n]", hostname, &SERVER_PORT, path);
+        // If parsing failed to assign 3 objects, port is not present in URL.
+        // Parse again, this time excluding port
+        if(n_objects_assigned < 3) {
+            sscanf(url, "http://%[^/]%[^\n]", hostname, path);
+        }
+        // printf("n_objects_assigned: %d", n_objects_assigned);
+        // printf("\nhostname: %s\nSERVER_PORT: %d\npath: %s\n\n", hostname, SERVER_PORT, path);
 
         // Get server information
         struct hostent* server = gethostbyname(hostname);    // Lookup IP address of host using DNS
         if(server == NULL) {
             perror("Unable to retrieve server information\n");
-            close(proxy_connection_socket);
+            close(client_socket);
             continue;
         }
-
-        // printf("SERVER PORT: %d\n", SERVER_PORT);
-        // printf("hostname: %s\n", hostname);
-        // printf("path: %s\n", path);
 
         // Create socket for server
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -135,23 +136,26 @@ int main(int argc, char *argv[]) {
         // Connect to server
         if(connect(server_socket, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
             perror("Unable to connect to server");
-            close(proxy_connection_socket);
+            close(client_socket);
             close(server_socket);
             continue;
         }
 
         // Send client's HTTP request to server
         snprintf(buffer, BUFFER_SIZE, "GET %s %s\r\nHost: %s\r\nConnection: close\r\n\r\n", path, version, hostname);
+        printf("Buffer sent to server: \n");
+        printf("%s\n", buffer);
+        // printf("GET %s %s\r\nHost: %s\r\nConnection: close\r\n\r\n", path, version, hostname);
         write(server_socket, buffer, strlen(buffer));
 
         // Read response from web server back into buffer (to be written
         // back to the client)
         while((bytes_read = read(server_socket, buffer, BUFFER_SIZE)) > 0) {
-            write(proxy_connection_socket, buffer, BUFFER_SIZE);
+            write(client_socket, buffer, BUFFER_SIZE);
         }
 
         // Close connection with both client and server
-        close(proxy_connection_socket);
+        close(client_socket);
         close(server_socket);
     }
     close(proxy_listening_socket);
