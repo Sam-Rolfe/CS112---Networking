@@ -128,13 +128,22 @@ int main(void) {
             close(server_socket);
             continue;
         }
-        printf("Connected to server...\n");
+        printf("Connected to server...\n\n");
 
         // Send client's HTTP request to server
         snprintf(buffer, BUFFER_SIZE, "GET %s %s\r\nHost: %s\r\nConnection: close\r\n\r\n", path, version, hostname);
+        write(server_socket, buffer, strlen(buffer));
 
+        // Read response from web server back into buffer (to be written
+        // back to the client)
+        while((bytes_read = read(server_socket, buffer, BUFFER_SIZE)) > 0) {
+            write(proxy_connection_socket, buffer, BUFFER_SIZE);
+        }
+        // printf(buffer);
         close(proxy_connection_socket);
         close(server_socket);
     }
     close(proxy_listening_socket);
+
+    return 0;
 }
