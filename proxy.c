@@ -2,6 +2,7 @@
 // Author:      Sam Rolfe
 // Date:        September 2024
 // Script:      proxy.c 
+// Usage:       ./a.out 9210
 //*************************************************************************************************
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,7 +14,6 @@
 #include <netdb.h>      // Provides hostent struct
 
 // ----GLOBAL VARIABLES----------------------------------------------------------------------------
-#define PORT 9120
 #define SERVER_PORT 80
 #define BUFFER_SIZE 10000  // Confirm size
 
@@ -22,11 +22,21 @@
 
 //----MAIN-----------------------------------------------------------------------------------------
 
-int main(void) {
+int main(int argc, char *argv[]) {
+    // Declare variables
+    int PORT;
     int proxy_listening_socket, proxy_connection_socket;
     struct sockaddr_in proxy_addr, client_addr; // Struct for handling internet addresses
     socklen_t client_addr_size = sizeof(client_addr);
     char buffer[BUFFER_SIZE];
+
+    // Get port number from program argument
+    if(argc != 2) {
+        printf("Usage: %s <port>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    PORT = atoi(argv[1]);
+    printf("PORT: %d\n", PORT);
 
     // Create socket for proxy
     proxy_listening_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -89,7 +99,7 @@ int main(void) {
             continue;
         }
 
-        printf("Printing buffer: %s\n\n", buffer);
+        printf("Printing client HTTP request: \n%s\n", buffer);
 
         // Get the hostname and path from the URL
         char hostname[BUFFER_SIZE], path[BUFFER_SIZE];
@@ -102,7 +112,6 @@ int main(void) {
             close(proxy_connection_socket);
             continue;
         }
-        printf("Created server information\n");
 
         // Create socket for server
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -110,8 +119,6 @@ int main(void) {
             perror("Error creating connection socket");
             exit(EXIT_FAILURE);
         }
-        printf("Created socket for server\n");
-
 
         // Create struct for server address
         struct sockaddr_in server_addr;
@@ -121,14 +128,12 @@ int main(void) {
         memcpy(&server_addr.sin_addr.s_addr, server->h_addr_list[0], server->h_length);
 
         // Connect to server
-        printf("Attempting to connect to server...\n");
         if(connect(server_socket, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
             perror("Unable to connect to server");
             close(proxy_connection_socket);
             close(server_socket);
             continue;
         }
-        printf("Connected to server...\n\n");
 
         // Send client's HTTP request to server
         snprintf(buffer, BUFFER_SIZE, "GET %s %s\r\nHost: %s\r\nConnection: close\r\n\r\n", path, version, hostname);
@@ -139,7 +144,6 @@ int main(void) {
         while((bytes_read = read(server_socket, buffer, BUFFER_SIZE)) > 0) {
             write(proxy_connection_socket, buffer, BUFFER_SIZE);
         }
-        // printf(buffer);
         close(proxy_connection_socket);
         close(server_socket);
     }
