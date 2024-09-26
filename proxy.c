@@ -14,7 +14,7 @@
 #include <netdb.h>      // Provides hostent struct
 
 // ----GLOBAL VARIABLES----------------------------------------------------------------------------
-#define SERVER_PORT 80
+#define DEFAULT_SERVER_PORT 80
 #define BUFFER_SIZE 10000  // Confirm size
 
 //----FUNCTIONS------------------------------------------------------------------------------------
@@ -24,7 +24,7 @@
 
 int main(int argc, char *argv[]) {
     // Declare variables
-    int PORT;
+    int PROXY_PORT;
     int proxy_listening_socket, proxy_connection_socket;
     struct sockaddr_in proxy_addr, client_addr; // Struct for handling internet addresses
     socklen_t client_addr_size = sizeof(client_addr);
@@ -35,8 +35,8 @@ int main(int argc, char *argv[]) {
         printf("Usage: %s <port>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
-    PORT = atoi(argv[1]);
-    printf("PORT: %d\n", PORT);
+    PROXY_PORT = atoi(argv[1]);
+    printf("PROXY_PORT: %d\n", PROXY_PORT);
 
     // Create socket for proxy
     proxy_listening_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
     memset(&proxy_addr, 0, sizeof(proxy_addr)); // Set structure to 0's, ensuring sin_zero is all zeros
     proxy_addr.sin_family = AF_INET;            // Set address family to IPv4
     proxy_addr.sin_addr.s_addr = INADDR_ANY;    // Set IP address to all IP addresses of machine
-    proxy_addr.sin_port = htons(PORT);          // Set port number
+    proxy_addr.sin_port = htons(PROXY_PORT);          // Set port number
 
     // Set socket options to allow reuse of the address (fixes "address already in use" bug).
     // Consider removing for submission
@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
 
     // Listen for incoming connections requests on "listening socket"
     listen(proxy_listening_socket, 3);
-    printf("Listening for incoming connection requests on port %d...\n", PORT);
+    printf("Listening for incoming connection requests on port %d...\n", PROXY_PORT);
 
     while(1) {
         // Yield CPU and await connection request. Upon reception,
@@ -101,9 +101,10 @@ int main(int argc, char *argv[]) {
 
         printf("Printing client HTTP request: \n%s\n", buffer);
 
-        // Get the hostname and path from the URL
+        // Get the hostname, path, and port number (if present) from URL
+        int SERVER_PORT = DEFAULT_SERVER_PORT;
         char hostname[BUFFER_SIZE], path[BUFFER_SIZE];
-        sscanf(url, "http://%[^/]%s", hostname, path);
+        sscanf(url, "http://%[^:/]:%d%s", hostname, &SERVER_PORT, path);
 
         // Get server information
         struct hostent* server = gethostbyname(hostname);    // Lookup IP address of host using DNS
@@ -112,6 +113,10 @@ int main(int argc, char *argv[]) {
             close(proxy_connection_socket);
             continue;
         }
+
+        // printf("SERVER PORT: %d\n", SERVER_PORT);
+        // printf("hostname: %s\n", hostname);
+        // printf("path: %s\n", path);
 
         // Create socket for server
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -144,6 +149,8 @@ int main(int argc, char *argv[]) {
         while((bytes_read = read(server_socket, buffer, BUFFER_SIZE)) > 0) {
             write(proxy_connection_socket, buffer, BUFFER_SIZE);
         }
+
+        // Close connection with both client and server
         close(proxy_connection_socket);
         close(server_socket);
     }
