@@ -43,7 +43,6 @@ int main(int argc, char *argv[]) {
         perror("Error creating listening socket");
         exit(EXIT_FAILURE);
     }
-    printf("Socket number: %d\n", proxy_listening_socket);
 
     // Initialize fields of struct for proxy server address
     memset(&proxy_addr, 0, sizeof(proxy_addr)); // Set structure to 0's, ensuring sin_zero is all zeros
@@ -67,7 +66,7 @@ int main(int argc, char *argv[]) {
 
     // Listen for incoming connections requests on "listening socket"
     listen(proxy_listening_socket, 5);
-    printf("Listening for incoming connection requests on port %d...\n", PROXY_PORT);
+    // printf("Listening for incoming connection requests on port %d...\n\n", PROXY_PORT);
 
     while(1) {
         // Yield CPU and await connection request. Upon reception,
@@ -86,7 +85,7 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
 
-        printf("Buffer received from client: \n%s", buffer);
+        // printf("Buffer received from client: \n%s", buffer);
 
         // Parse contents of client request into HTTP request components
         char method[BUFFER_SIZE], url[BUFFER_SIZE], version[BUFFER_SIZE];
@@ -143,16 +142,18 @@ int main(int argc, char *argv[]) {
 
         // Send client's HTTP request to server
         snprintf(buffer, BUFFER_SIZE, "GET %s %s\r\nHost: %s\r\nConnection: close\r\n\r\n", path, version, hostname);
-        printf("Buffer sent to server: \n");
-        printf("%s\n", buffer);
+        // printf("Buffer sent to server: \n");
+        // printf("%s", buffer);
         // printf("GET %s %s\r\nHost: %s\r\nConnection: close\r\n\r\n", path, version, hostname);
         write(server_socket, buffer, strlen(buffer));
 
         // Read response from web server back into buffer (to be written
         // back to the client)
         while((bytes_read = read(server_socket, buffer, BUFFER_SIZE)) > 0) {
+            // printf("Buffer received from server: \n%s");
             write(client_socket, buffer, BUFFER_SIZE);
         }
+        // printf("\n\n");
 
         // Close connection with both client and server
         close(client_socket);
