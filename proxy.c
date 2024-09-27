@@ -13,6 +13,9 @@
 #include <netinet/in.h> // Provides sockaddr_in struct
 #include <netdb.h>      // Provides hostent struct
 
+#include "cache.h"       // Include structs used for cache
+#include "cache_entry.h" 
+
 // ----GLOBAL VARIABLES----------------------------------------------------------------------------
 #define DEFAULT_SERVER_PORT 80
 #define BUFFER_SIZE 10000  // Confirm size
@@ -163,3 +166,5 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
+//-------------------------------------------------------------------------------------------------
