@@ -192,18 +192,18 @@ int main(int argc, char *argv[]) {
 
         // Send client's HTTP request to server
         write(server_socket, buffer, strlen(buffer));
-        bytes_read = 0;
-        while((bytes_read = read(server_socket, buffer, sizeof(buffer))) > 0) {
-            write(client_socket, buffer, bytes_read);
-        }
-        write(client_socket, buffer, bytes_read);
+        // bytes_read = 0;
+        // while((bytes_read = read(server_socket, buffer, sizeof(buffer))) > 0) {
+        //     write(client_socket, buffer, bytes_read);
+        // }
+        // write(client_socket, buffer, bytes_read);
 
-        // size_t server_response_size = 0;
-        // unsigned char *server_response = proxy_request(server_socket, cache, url, &server_response_size);
-        // write(client_socket, buffer, response_size);
+        size_t server_response_size = 0;
+        unsigned char *server_response = proxy_request(server_socket, cache, url, &server_response_size);
+        write(client_socket, server_response, server_response_size);
+        free(server_response);
 
         // Close connection with both client and server
-        // free(server_response);
         close(client_socket);
         close(server_socket);
     }
