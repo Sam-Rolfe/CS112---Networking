@@ -19,14 +19,41 @@
 
 // ----GLOBAL VARIABLES----------------------------------------------------------------------------
 #define DEFAULT_SERVER_PORT 80
-#define BUFFER_MAX_SIZE 1000 //10*1024*1024  // Confirm size
-#define HTTP_HEADER_MAX_SIZE 1000
+#define BUFFER_MAX_SIZE 10*1024*1024  // Confirm size
+#define HTTP_HEADER_MAX_SIZE 2000
+
+#define INITIAL_BUFFER_SIZE 1024
+#define BUFFER_INCREMENT_FACTOR 2
 
 //----FUNCTIONS------------------------------------------------------------------------------------
+unsigned char *read_stream(int socket, size_t *total_size) {
+    size_t buffer_size = (size_t) INITIAL_BUFFER_SIZE;
+    unsigned char *buffer = malloc(buffer_size);
+    size_t bytes_read = 0;
+    *total_size = 0;
+
+    while(bytes_read = read(socket, buffer + *total_size, buffer_size - *total_size)){
+        *total_size += bytes_read;
+
+        // If buffer is full, expand it by BUFFER_INCREMENT_FACTOR
+        if(*total_size == buffer_size) {
+            buffer_size = buffer_size * BUFFER_INCREMENT_FACTOR;
+            unsigned char *temp = realloc(buffer, buffer_size);
+            if (temp == NULL) {
+                perror("Failed to expand buffer");
+                free(buffer);
+                return NULL;
+            }
+            buffer = temp;
+        }
+    }
+    return buffer;
+}
+
 // Check whether request is cached and fresh.
 // If so, return response from cache. Else, 
-// retrive from server, cache, and return response
-void proxy_request(int server_socket, Cache* cache, char* url, char* buffer, int* bytes_read) {
+// retrieve from server, cache, and return response
+unsigned char *proxy_request(int server_socket, Cache* cache, char* url, size_t *server_response_size) {
     // TODO: Check whether request is already present (and fresh)
     //       in cache
     bool cache_hit = false;
@@ -34,8 +61,12 @@ void proxy_request(int server_socket, Cache* cache, char* url, char* buffer, int
     // TODO: Get response from server, pass back to client, 
     //       and add to cache
     // write(server_socket, buffer, strlen(buffer));
-    *bytes_read = read(server_socket, buffer, sizeof(buffer));
+    unsigned char *server_response = read_stream(server_socket, server_response_size);
+    return server_response;
+    // *bytes_read = read(server_socket, buffer, (size_t) BUFFER_MAX_SIZE);
 }
+
+
 
 //----MAIN-----------------------------------------------------------------------------------------
 
@@ -46,7 +77,7 @@ int main(int argc, char *argv[]) {
     int proxy_listening_socket, client_socket;
     struct sockaddr_in proxy_addr, client_addr; // Struct for handling internet addresses
     socklen_t client_addr_size = sizeof(client_addr);
-    char buffer[BUFFER_MAX_SIZE];
+    char* buffer = malloc((size_t) BUFFER_MAX_SIZE);
     Cache* cache = create_cache();
 
     // Get port number from argv
@@ -97,8 +128,8 @@ int main(int argc, char *argv[]) {
         }
     
         // Read contents from client connection into buffer
-        memset(buffer, 0, BUFFER_MAX_SIZE);
-        int bytes_read = read(client_socket, buffer, BUFFER_MAX_SIZE - 1);
+        memset(buffer, 0, (size_t) BUFFER_MAX_SIZE);
+        int bytes_read = read(client_socket, buffer, (size_t) (BUFFER_MAX_SIZE - 1));
         if(bytes_read < 0) {
             perror("Error reading from connection socket");
             return -1;
@@ -161,17 +192,18 @@ int main(int argc, char *argv[]) {
 
         // Send client's HTTP request to server
         write(server_socket, buffer, strlen(buffer));
-
-        // proxy_receive(server_socket);
+        bytes_read = 0;
         while((bytes_read = read(server_socket, buffer, sizeof(buffer))) > 0) {
             write(client_socket, buffer, bytes_read);
         }
-        // proxy_request(server_socket, cache, url, buffer, &bytes_read);
+        write(client_socket, buffer, bytes_read);
 
-        // write(client_socket, buffer, bytes_read);
-        printf("\n\n");
+        // size_t server_response_size = 0;
+        // unsigned char *server_response = proxy_request(server_socket, cache, url, &server_response_size);
+        // write(client_socket, buffer, response_size);
 
         // Close connection with both client and server
+        // free(server_response);
         close(client_socket);
         close(server_socket);
     }
