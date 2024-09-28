@@ -12,26 +12,42 @@
 #include <sys/socket.h> 
 #include <netinet/in.h> // Provides sockaddr_in struct
 #include <netdb.h>      // Provides hostent struct
+#include <stdbool.h>
 
-#include "cache.h"       // Include structs used for cache
+#include "cache.h"       
 #include "cache_entry.h" 
 
 // ----GLOBAL VARIABLES----------------------------------------------------------------------------
 #define DEFAULT_SERVER_PORT 80
-#define BUFFER_SIZE 10000  // Confirm size
+#define BUFFER_MAX_SIZE 1000 //10*1024*1024  // Confirm size
+#define HTTP_HEADER_MAX_SIZE 1000
 
 //----FUNCTIONS------------------------------------------------------------------------------------
-
+// Check whether request is cached and fresh.
+// If so, return response from cache. Else, 
+// retrive from server, cache, and return response
+void proxy_request(int server_socket, Cache* cache, char* url, char* buffer, int* bytes_read) {
+    // TODO: Check whether request is already present (and fresh)
+    //       in cache
+    bool cache_hit = false;
+    
+    // TODO: Get response from server, pass back to client, 
+    //       and add to cache
+    // write(server_socket, buffer, strlen(buffer));
+    *bytes_read = read(server_socket, buffer, sizeof(buffer));
+}
 
 //----MAIN-----------------------------------------------------------------------------------------
 
 int main(int argc, char *argv[]) {
+    printf("Start\n");
     // Declare variables
     int PROXY_PORT;
     int proxy_listening_socket, client_socket;
     struct sockaddr_in proxy_addr, client_addr; // Struct for handling internet addresses
     socklen_t client_addr_size = sizeof(client_addr);
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_MAX_SIZE];
+    Cache* cache = create_cache();
 
     // Get port number from argv
     if(argc != 2) {
@@ -81,8 +97,8 @@ int main(int argc, char *argv[]) {
         }
     
         // Read contents from client connection into buffer
-        memset(buffer, 0, BUFFER_SIZE);
-        int bytes_read = read(client_socket, buffer, BUFFER_SIZE - 1);
+        memset(buffer, 0, BUFFER_MAX_SIZE);
+        int bytes_read = read(client_socket, buffer, BUFFER_MAX_SIZE - 1);
         if(bytes_read < 0) {
             perror("Error reading from connection socket");
             return -1;
@@ -91,7 +107,7 @@ int main(int argc, char *argv[]) {
         // printf("Buffer received from client: \n%s", buffer);
 
         // Parse contents of client request into HTTP request components
-        char method[BUFFER_SIZE], url[BUFFER_SIZE], version[BUFFER_SIZE];
+        char method[HTTP_HEADER_MAX_SIZE], url[HTTP_HEADER_MAX_SIZE], version[HTTP_HEADER_MAX_SIZE];
         sscanf(buffer, "%s %s %s", method, url, version);
 
         // Confirm request is GET request (as per project specs)
@@ -103,7 +119,7 @@ int main(int argc, char *argv[]) {
 
         // Get the hostname, path, and port number (if present) from URL
         int SERVER_PORT = DEFAULT_SERVER_PORT;
-        char hostname[BUFFER_SIZE], path[BUFFER_SIZE];
+        char hostname[HTTP_HEADER_MAX_SIZE], path[HTTP_HEADER_MAX_SIZE];
         int n_objects_assigned = sscanf(url, "http://%[^:/]%*[:]%d%[^\n]", hostname, &SERVER_PORT, path);
         // If parsing failed to assign 3 objects, port is not present in URL.
         // Parse again, this time excluding port
@@ -144,16 +160,15 @@ int main(int argc, char *argv[]) {
         }
 
         // Send client's HTTP request to server
-        // snprintf(buffer, BUFFER_SIZE, "GET %s %s\r\nHost: %s\r\nConnection: close\r\n\r\n", path, version, hostname);
-        // printf("Buffer sent to server: \n");
-        // printf("%s", buffer);
-        // printf("GET %s %s\r\nHost: %s\r\nConnection: close\r\n\r\n", path, version, hostname);
         write(server_socket, buffer, strlen(buffer));
 
+        // proxy_receive(server_socket);
         while((bytes_read = read(server_socket, buffer, sizeof(buffer))) > 0) {
-            // printf("Buffer received from server: \n%s");
             write(client_socket, buffer, bytes_read);
         }
+        // proxy_request(server_socket, cache, url, buffer, &bytes_read);
+
+        // write(client_socket, buffer, bytes_read);
         printf("\n\n");
 
         // Close connection with both client and server
