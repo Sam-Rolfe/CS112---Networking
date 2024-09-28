@@ -33,18 +33,18 @@ int main(int argc, char *argv[]) {
     socklen_t client_addr_size = sizeof(client_addr);
     char buffer[BUFFER_SIZE];
 
-    // Get port number from program argument
+    // Get port number from argv
     if(argc != 2) {
         printf("Usage: %s <port>\n", argv[0]);
-        exit(EXIT_FAILURE);
+        return -1;
     }
     PROXY_PORT = atoi(argv[1]);
 
-    // Create socket for proxy
+    // Create listening socket
     proxy_listening_socket = socket(AF_INET, SOCK_STREAM, 0);
     if(proxy_listening_socket < 0) {
         perror("Error creating listening socket");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     // Initialize fields of struct for proxy server address
@@ -58,18 +58,18 @@ int main(int argc, char *argv[]) {
     if (setsockopt(proxy_listening_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         perror("Error setting socket options");
         close(proxy_listening_socket);
-        exit(EXIT_FAILURE);
+        return -1;
     }   
 
     // Bind socket to IP address and port (specificied in proxy_addr)
     if(bind(proxy_listening_socket, (struct sockaddr *) &proxy_addr, sizeof(proxy_addr)) < 0 ){
         perror("Error binding socket");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     // Listen for incoming connections requests on "listening socket"
     listen(proxy_listening_socket, 5);
-    // printf("Listening for incoming connection requests on port %d...\n\n", PROXY_PORT);
+    printf("Listening for incoming connection requests on port %d...\n\n", PROXY_PORT);
 
     while(1) {
         // Yield CPU and await connection request. Upon reception,
@@ -77,15 +77,15 @@ int main(int argc, char *argv[]) {
         client_socket = accept(proxy_listening_socket, (struct sockaddr *) &client_addr, &client_addr_size);
         if(client_socket  < 0){
             perror("Error creating connection socket");
-            exit(EXIT_FAILURE);
+            return -1;
         }
-
+    
         // Read contents from client connection into buffer
         memset(buffer, 0, BUFFER_SIZE);
         int bytes_read = read(client_socket, buffer, BUFFER_SIZE - 1);
         if(bytes_read < 0) {
             perror("Error reading from connection socket");
-            exit(EXIT_FAILURE);
+            return -1;
         }
 
         // printf("Buffer received from client: \n%s", buffer);
@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
         if(server_socket  < 0){
             perror("Error creating connection socket");
-            exit(EXIT_FAILURE);
+            return -1;
         }
 
         // Create struct for server address
@@ -144,19 +144,17 @@ int main(int argc, char *argv[]) {
         }
 
         // Send client's HTTP request to server
-        snprintf(buffer, BUFFER_SIZE, "GET %s %s\r\nHost: %s\r\nConnection: close\r\n\r\n", path, version, hostname);
+        // snprintf(buffer, BUFFER_SIZE, "GET %s %s\r\nHost: %s\r\nConnection: close\r\n\r\n", path, version, hostname);
         // printf("Buffer sent to server: \n");
         // printf("%s", buffer);
         // printf("GET %s %s\r\nHost: %s\r\nConnection: close\r\n\r\n", path, version, hostname);
         write(server_socket, buffer, strlen(buffer));
 
-        // Read response from web server back into buffer (to be written
-        // back to the client)
-        while((bytes_read = read(server_socket, buffer, BUFFER_SIZE)) > 0) {
+        while((bytes_read = read(server_socket, buffer, sizeof(buffer))) > 0) {
             // printf("Buffer received from server: \n%s");
-            write(client_socket, buffer, BUFFER_SIZE);
+            write(client_socket, buffer, bytes_read);
         }
-        // printf("\n\n");
+        printf("\n\n");
 
         // Close connection with both client and server
         close(client_socket);
