@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Listen for incoming connections requests on "listening socket"
-    listen(proxy_listening_socket, 5);
+    listen(proxy_listening_socket, 10);
     printf("Listening for incoming connection requests on port %d...\n\n", PROXY_PORT);
 
     while(1) {
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        // Check whether request is present in cache. Return if present
+        // Check whether request is present in cache. Return true if present
         // and fresh. If present and stale, evict and return false.
         // If not present, return false
         bool cache_hit = cache_check(cache, url);
@@ -196,8 +196,8 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
-            // Send request to server, add response to cache, and return response
-            // to client
+            // Send request to server, add response to cache, and return copy 
+            // of response to client
             server_response_size = 0;
             server_response = proxy_request(server_socket, buffer, url, cache, &server_response_size);
 

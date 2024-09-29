@@ -72,14 +72,17 @@ bool cache_check(Cache* cache, char *url) {
         printf("Cached entry not found\n");
         return false;
     } 
+    if(cache_entry_index >= 0) {
+        printf("Found cached entry at index :%d\n", cache_entry_index);
+    }
     CacheEntry *cache_entry = cache->entries[cache_entry_index];
     bool is_valid = cache_entry_valid(cache_entry);
     if(!is_valid) {
+        printf("Cached entry is stale. Evicting...\n");
         evict(cache, cache_entry_index);
         return false;
     }
 
-    printf("Cached entry found at index: %d\n", cache_entry_index);
     return true;
 }
 
@@ -94,11 +97,10 @@ void evict(Cache* cache, int cache_entry_index) {
 }
 
 
-
 // Given a cache and the URL of a cache entry known to exist in the cache, 
-// return a pointer to the response stored in the cache entry, update
-// the retrieval field, and assign the size of the server response
-// to the server_response_size pointer passed in
+// return a copy of the response stored in the cache entry with the age field
+// added to the header. Update the retrieval field and assign the size of the 
+// server response to the server_response_size pointer passed in
 unsigned char *cache_retrieval(Cache *cache, char *url, size_t *server_response_size){
     // Retrieve the cached entry
     int n = get_cache_entry_index(cache, url);
@@ -125,8 +127,8 @@ unsigned char *add_age_header(CacheEntry *cached_entry, size_t *server_response_
     // Create age header
     char *age_header = malloc(20);
     sprintf(age_header, "\r\nAge: %d", age);
-    printf("Age header: %s\n", age_header);
-    printf("Length of age string: %d\n", strlen(age_header));
+    // printf("Age header: %s\n", age_header);
+    // printf("Length of age string: %d\n", strlen(age_header));
 
     // Locate the end of the HTTP headers marked by "\r\n\r\n"
     unsigned char *server_response = cached_entry->server_response;
