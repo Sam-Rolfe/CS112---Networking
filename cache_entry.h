@@ -7,17 +7,24 @@
 #ifndef CACHE_ENTRY_H
 #define CACHE_ENTRY_H
 
+#include <time.h>
+
 #define URL_MAX_CHARACTERS 100                // Max size 100 characters
 #define HTTP_RESPONSE_MAX_SIZE 10*1024*1024   // Max size 10 MB
 
 // ----GLOBAL VARIABLES----------------------------------------------------------------------------
 typedef struct CacheEntry{
-     char url[URL_MAX_CHARACTERS+1];
-     unsigned char http_response[HTTP_RESPONSE_MAX_SIZE];
+    char url[URL_MAX_CHARACTERS+1];
+    unsigned char *server_response;
+    size_t server_response_size;
+    struct timespec time_added;
+    int max_age;
 } CacheEntry;
 
 //----FUNCTIONS------------------------------------------------------------------------------------
 
+CacheEntry *CacheEntry_create(char* url, unsigned char* server_response, size_t *server_response_size);
+int get_max_age(unsigned char *server_response);
 
 //----MAIN-----------------------------------------------------------------------------------------
 

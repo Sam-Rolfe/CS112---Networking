@@ -22,7 +22,7 @@
 #define BUFFER_MAX_SIZE 10*1024*1024  // Confirm size
 #define HTTP_HEADER_MAX_SIZE 2000
 
-#define INITIAL_BUFFER_SIZE 1024
+#define INITIAL_BUFFER_SIZE 1024*1024
 #define BUFFER_INCREMENT_FACTOR 2
 
 //----FUNCTIONS------------------------------------------------------------------------------------
@@ -53,17 +53,13 @@ unsigned char *read_stream(int socket, size_t *total_size) {
 // Check whether request is cached and fresh.
 // If so, return response from cache. Else, 
 // retrieve from server, cache, and return response
-unsigned char *proxy_request(int server_socket, Cache* cache, char* url, size_t *server_response_size) {
-    // TODO: Check whether request is already present (and fresh)
-    //       in cache
-    bool cache_hit = false;
-    
+unsigned char *proxy_request(int server_socket, char* buffer, char* url, Cache* cache, size_t *server_response_size) { 
     // TODO: Get response from server, pass back to client, 
     //       and add to cache
-    // write(server_socket, buffer, strlen(buffer));
+    write(server_socket, buffer, strlen(buffer));
     unsigned char *server_response = read_stream(server_socket, server_response_size);
+    cache_insert(cache, url, server_response, server_response_size);
     return server_response;
-    // *bytes_read = read(server_socket, buffer, (size_t) BUFFER_MAX_SIZE);
 }
 
 
@@ -71,14 +67,15 @@ unsigned char *proxy_request(int server_socket, Cache* cache, char* url, size_t 
 //----MAIN-----------------------------------------------------------------------------------------
 
 int main(int argc, char *argv[]) {
-    printf("Start\n");
     // Declare variables
     int PROXY_PORT;
     int proxy_listening_socket, client_socket;
     struct sockaddr_in proxy_addr, client_addr; // Struct for handling internet addresses
     socklen_t client_addr_size = sizeof(client_addr);
     char* buffer = malloc((size_t) BUFFER_MAX_SIZE);
-    Cache* cache = create_cache();
+    Cache* cache = cache_create();
+    unsigned char *server_response;
+    size_t server_response_size;
 
     // Get port number from argv
     if(argc != 2) {
@@ -138,8 +135,8 @@ int main(int argc, char *argv[]) {
         // printf("Buffer received from client: \n%s", buffer);
 
         // Parse contents of client request into HTTP request components
-        char method[HTTP_HEADER_MAX_SIZE], url[HTTP_HEADER_MAX_SIZE], version[HTTP_HEADER_MAX_SIZE];
-        sscanf(buffer, "%s %s %s", method, url, version);
+        char method[HTTP_HEADER_MAX_SIZE], url[HTTP_HEADER_MAX_SIZE];
+        sscanf(buffer, "%s %s", method, url);
 
         // Confirm request is GET request (as per project specs)
         if (strncmp(method, "GET", 3) != 0) {
@@ -148,67 +145,65 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        // Get the hostname, path, and port number (if present) from URL
-        int SERVER_PORT = DEFAULT_SERVER_PORT;
-        char hostname[HTTP_HEADER_MAX_SIZE], path[HTTP_HEADER_MAX_SIZE];
-        int n_objects_assigned = sscanf(url, "http://%[^:/]%*[:]%d%[^\n]", hostname, &SERVER_PORT, path);
-        // If parsing failed to assign 3 objects, port is not present in URL.
-        // Parse again, this time excluding port
-        if(n_objects_assigned < 3) {
-            sscanf(url, "http://%[^/]%[^\n]", hostname, path);
-        }
-        // printf("n_objects_assigned: %d", n_objects_assigned);
-        // printf("\nhostname: %s\nSERVER_PORT: %d\npath: %s\n\n", hostname, SERVER_PORT, path);
+        bool cache_hit = cache_check(cache, url);
+        if(cache_hit) {
+            server_response_size = 0;
+            server_response = cache_retrieval(cache, url, &server_response_size);
+        } else {
+            // Get the hostname, path, and port number (if present) from URL
+            int SERVER_PORT = DEFAULT_SERVER_PORT;
+            char hostname[HTTP_HEADER_MAX_SIZE], path[HTTP_HEADER_MAX_SIZE];
+            int n_objects_assigned = sscanf(url, "http://%[^:/]%*[:]%d%[^\n]", hostname, &SERVER_PORT, path);
+            // If parsing failed to assign 3 objects, port is not present in URL.
+            // Parse again, this time excluding port
+            if(n_objects_assigned < 3) {
+                sscanf(url, "http://%[^/]%[^\n]", hostname, path);
+            }
 
-        // Get server information
-        struct hostent* server = gethostbyname(hostname);    // Lookup IP address of host using DNS
-        if(server == NULL) {
-            perror("Unable to retrieve server information\n");
-            close(client_socket);
-            continue;
-        }
+            // Get server information
+            struct hostent* server = gethostbyname(hostname);    // Lookup IP address of host using DNS
+            if(server == NULL) {
+                perror("Unable to retrieve server information\n");
+                close(client_socket);
+                continue;
+            }
 
-        // Create socket for server
-        int server_socket = socket(AF_INET, SOCK_STREAM, 0);
-        if(server_socket  < 0){
-            perror("Error creating connection socket");
-            return -1;
-        }
+            // Create socket for server
+            int server_socket = socket(AF_INET, SOCK_STREAM, 0);
+            if(server_socket  < 0){
+                perror("Error creating connection socket");
+                return -1;
+            }
 
-        // Create struct for server address
-        struct sockaddr_in server_addr;
-        memset(&server_addr, 0, sizeof(server_addr)); // Set structure to 0's, ensuring sin_zero is all zeros
-        server_addr.sin_family = AF_INET;             // Set address family to IPv4
-        server_addr.sin_port = htons(SERVER_PORT);    // Set server port to port associated with web servers (80)
-        memcpy(&server_addr.sin_addr.s_addr, server->h_addr_list[0], server->h_length);
+            // Create struct for server address
+            struct sockaddr_in server_addr;
+            memset(&server_addr, 0, sizeof(server_addr)); // Set structure to 0's, ensuring sin_zero is all zeros
+            server_addr.sin_family = AF_INET;             // Set address family to IPv4
+            server_addr.sin_port = htons(SERVER_PORT);    // Set server port to port associated with web servers (80)
+            memcpy(&server_addr.sin_addr.s_addr, server->h_addr_list[0], server->h_length);
 
-        // Connect to server
-        if(connect(server_socket, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
-            perror("Unable to connect to server");
-            close(client_socket);
+            // Connect to server
+            if(connect(server_socket, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
+                perror("Unable to connect to server");
+                close(client_socket);
+                close(server_socket);
+                continue;
+            }
+
+            // Send request to server, add response to cache, and return response
+            // to client
+            server_response_size = 0;
+            server_response = proxy_request(server_socket, buffer, url, cache, &server_response_size);
+
             close(server_socket);
-            continue;
         }
-
-        // Send client's HTTP request to server
-        write(server_socket, buffer, strlen(buffer));
-        // bytes_read = 0;
-        // while((bytes_read = read(server_socket, buffer, sizeof(buffer))) > 0) {
-        //     write(client_socket, buffer, bytes_read);
-        // }
-        // write(client_socket, buffer, bytes_read);
-
-        size_t server_response_size = 0;
-        unsigned char *server_response = proxy_request(server_socket, cache, url, &server_response_size);
         write(client_socket, server_response, server_response_size);
-        free(server_response);
 
         // Close connection with both client and server
         close(client_socket);
-        close(server_socket);
     }
     close(proxy_listening_socket);
-
+    cache_free(cache);
     return 0;
 }
 
