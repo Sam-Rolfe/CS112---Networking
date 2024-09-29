@@ -52,14 +52,17 @@ unsigned char *read_stream(int socket, size_t *total_size) {
 
 // Check whether request is cached and fresh.
 // If so, return response from cache. Else, 
-// retrieve from server, cache, and return response
+// retrieve from server, cache, and return copy of response
 unsigned char *proxy_request(int server_socket, char* buffer, char* url, Cache* cache, size_t *server_response_size) { 
     // TODO: Get response from server, pass back to client, 
     //       and add to cache
     write(server_socket, buffer, strlen(buffer));
     unsigned char *server_response = read_stream(server_socket, server_response_size);
     cache_insert(cache, url, server_response, server_response_size);
-    return server_response;
+    // Return copy of response
+    unsigned char *server_response_copy = malloc(*server_response_size);
+    memcpy(server_response_copy, server_response, *server_response_size);
+    return server_response_copy;
 }
 
 
@@ -145,6 +148,9 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
+        // Check whether request is present in cache. Return if present
+        // and fresh. If present and stale, evict and return false.
+        // If not present, return false
         bool cache_hit = cache_check(cache, url);
         if(cache_hit) {
             server_response_size = 0;
@@ -198,7 +204,7 @@ int main(int argc, char *argv[]) {
             close(server_socket);
         }
         write(client_socket, server_response, server_response_size);
-
+        free(server_response);
         // Close connection with both client and server
         close(client_socket);
     }

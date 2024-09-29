@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 // ----GLOBAL VARIABLES----------------------------------------------------------------------------
 
@@ -51,6 +52,43 @@ int get_max_age(unsigned char *server_response) {
     int max_age_value = atoi(max_age);
     return(max_age_value);
 }
+
+// Given cache and index of cache_entry, return
+// true if valid and false if stale
+bool cache_entry_valid(CacheEntry* cache_entry) {
+    int age = get_age(cache_entry);
+    int max_age = cache_entry->max_age;
+    if(age >= max_age) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+// Given two timespec structures, store the difference in timespec diff
+void timespec_diff(struct timespec start, struct timespec end, struct timespec *diff) {
+    if ((end.tv_nsec - start.tv_nsec) < 0) {
+        diff->tv_sec = end.tv_sec - start.tv_sec - 1;
+        diff->tv_nsec = 1000000000L + end.tv_nsec - start.tv_nsec;
+    } else {
+        diff->tv_sec = end.tv_sec - start.tv_sec;
+        diff->tv_nsec = end.tv_nsec - start.tv_nsec;
+    }
+}
+
+// Given cached entry, return current age in seconds as integer
+int get_age(CacheEntry *cached_entry) {
+    // Calculate age
+    struct timespec time_added = cached_entry->time_added;
+    struct timespec time_current;
+    struct timespec time_diff;
+    // Calculate time difference
+    clock_gettime(CLOCK_REALTIME, &time_current);
+    timespec_diff(time_added, time_current, &time_diff);
+    int age = time_diff.tv_sec;
+    return(age);
+}
+
 
 //----MAIN-----------------------------------------------------------------------------------------
 

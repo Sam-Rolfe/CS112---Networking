@@ -29,9 +29,9 @@ void cache_insert(Cache* cache, char* url, unsigned char *server_response, size_
 bool cache_check(Cache* cache, char *url);
 int get_cache_entry_index(Cache* cache, char *url);
 unsigned char *cache_retrieval(Cache *cache, char *url, size_t *server_response_size);
-void add_age_header(CacheEntry *cached_entry);
-int get_age(CacheEntry *cached_entry);
-void timespec_diff(struct timespec start, struct timespec end, struct timespec *diff);
+unsigned char *add_age_header(CacheEntry *cached_entry, size_t *server_response_size);
+void evict(Cache* cache, int cache_entry_index);
+
 //----MAIN-----------------------------------------------------------------------------------------
 
 #endif

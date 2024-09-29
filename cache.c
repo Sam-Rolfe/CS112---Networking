@@ -67,15 +67,33 @@ int get_cache_entry_index(Cache* cache, char *url) {
 // If request is present and stale, evict and return false. 
 // If request is not present, return false.
 bool cache_check(Cache* cache, char *url) {
-    int n = get_cache_entry_index(cache, url);
-    if(n < 0) {
+    int cache_entry_index = get_cache_entry_index(cache, url);
+    if(cache_entry_index < 0) {
         printf("Cached entry not found\n");
         return false;
-    } else {
-        printf("Cached entry found at index: %d\n", n);
-        return true;
+    } 
+    CacheEntry *cache_entry = cache->entries[cache_entry_index];
+    bool is_valid = cache_entry_valid(cache_entry);
+    if(!is_valid) {
+        evict(cache, cache_entry_index);
+        return false;
     }
+
+    printf("Cached entry found at index: %d\n", cache_entry_index);
+    return true;
 }
+
+// Given cache and index of entry to evict, 
+// evict entry and update cache accordingly
+void evict(Cache* cache, int cache_entry_index) {
+    free(cache->entries[cache_entry_index]);
+    for(int i = cache_entry_index; i < (cache->size - 1); i++) {
+        cache->entries[i] = cache->entries[i+1];
+    }
+    cache->size -= 1;
+}
+
+
 
 // Given a cache and the URL of a cache entry known to exist in the cache, 
 // return a pointer to the response stored in the cache entry, update
@@ -98,8 +116,8 @@ unsigned char *cache_retrieval(Cache *cache, char *url, size_t *server_response_
     return server_response_with_age;
 }
 
-// Given cached entry, modify the cached response to incorporate
-// a new "Age" field
+// Given cached entry, return copy of cached response 
+// with "Age" field incorporated
 unsigned char *add_age_header(CacheEntry *cached_entry, size_t *server_response_size) {
     // Get age
     int age = get_age(cached_entry);
@@ -125,36 +143,11 @@ unsigned char *add_age_header(CacheEntry *cached_entry, size_t *server_response_
     memcpy(server_response_with_age + header_length, age_header, strlen(age_header));
     memcpy(server_response_with_age + header_length + strlen(age_header), server_response_header_end, body_length);
 
-    // Free the original server response
-    // free(cached_entry->server_response);
-    // cached_entry->server_response = server_response_with_age;
+    // Return new buffer with age header added
     *server_response_size = cached_entry->server_response_size + strlen(age_header);
     return server_response_with_age;
 }
 
-// Given cached entry, return current age in seconds as integer
-int get_age(CacheEntry *cached_entry) {
-    // Calculate age
-    struct timespec time_added = cached_entry->time_added;
-    struct timespec time_current;
-    struct timespec time_diff;
-    // Calculate time difference
-    clock_gettime(CLOCK_REALTIME, &time_current);
-    timespec_diff(time_added, time_current, &time_diff);
-    int age = time_diff.tv_sec;
-    return(age);
-}
-
-// Given two timespec structures, store the difference in timespec diff
-void timespec_diff(struct timespec start, struct timespec end, struct timespec *diff) {
-    if ((end.tv_nsec - start.tv_nsec) < 0) {
-        diff->tv_sec = end.tv_sec - start.tv_sec - 1;
-        diff->tv_nsec = 1000000000L + end.tv_nsec - start.tv_nsec;
-    } else {
-        diff->tv_sec = end.tv_sec - start.tv_sec;
-        diff->tv_nsec = end.tv_nsec - start.tv_nsec;
-    }
-}
 
 
 
