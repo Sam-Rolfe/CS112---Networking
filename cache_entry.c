@@ -2,7 +2,7 @@
 // Author:      Sam Rolfe
 // Date:        September 2024
 // Script:      cache_entry.c
-// Usage:       Implementation file for cache
+// Usage:       Implementation file for cache entry
 //*************************************************************************************************
 #include "cache_entry.h"
 
@@ -29,6 +29,7 @@ CacheEntry *CacheEntry_create(char* url, unsigned char* server_response, size_t 
     cache_entry->server_response_size = *server_response_size;
     cache_entry->max_age = get_max_age(server_response);
     clock_gettime(CLOCK_REALTIME, &(cache_entry->time_added));
+    clock_gettime(CLOCK_REALTIME, &(cache_entry->time_accessed));
     printf("Creating new cache entry. max-age: %d\n", cache_entry->max_age);
     return cache_entry;
 }

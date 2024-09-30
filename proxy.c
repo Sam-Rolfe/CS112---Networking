@@ -23,7 +23,7 @@
 #define HTTP_HEADER_MAX_SIZE 2000
 
 #define INITIAL_BUFFER_SIZE 1024*1024
-#define BUFFER_INCREMENT_FACTOR 2
+#define BUFFER_INCREMENT_FACTOR 2 
 
 //----FUNCTIONS------------------------------------------------------------------------------------
 unsigned char *read_stream(int socket, size_t *total_size) {
@@ -54,9 +54,9 @@ unsigned char *read_stream(int socket, size_t *total_size) {
 // If so, return response from cache. Else, 
 // retrieve from server, cache, and return copy of response
 unsigned char *proxy_request(int server_socket, char* buffer, char* url, Cache* cache, size_t *server_response_size) { 
-    // TODO: Get response from server, pass back to client, 
-    //       and add to cache
+    // Write request to server
     write(server_socket, buffer, strlen(buffer));
+    // Read response from server and insert into cache
     unsigned char *server_response = read_stream(server_socket, server_response_size);
     cache_insert(cache, url, server_response, server_response_size);
     // Return copy of response
@@ -75,8 +75,10 @@ int main(int argc, char *argv[]) {
     int proxy_listening_socket, client_socket;
     struct sockaddr_in proxy_addr, client_addr; // Struct for handling internet addresses
     socklen_t client_addr_size = sizeof(client_addr);
+
     char* buffer = malloc((size_t) BUFFER_MAX_SIZE);
     Cache* cache = cache_create();
+
     unsigned char *server_response;
     size_t server_response_size;
 
@@ -210,6 +212,7 @@ int main(int argc, char *argv[]) {
     }
     close(proxy_listening_socket);
     cache_free(cache);
+    free(buffer);
     return 0;
 }
 

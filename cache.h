@@ -31,6 +31,8 @@ int get_cache_entry_index(Cache* cache, char *url);
 unsigned char *cache_retrieval(Cache *cache, char *url, size_t *server_response_size);
 unsigned char *add_age_header(CacheEntry *cached_entry, size_t *server_response_size);
 void evict(Cache* cache, int cache_entry_index);
+void cache_eviction_protocol(Cache* cache);
+bool is_older(struct timespec time1, struct timespec time2);
 
 //----MAIN-----------------------------------------------------------------------------------------
 

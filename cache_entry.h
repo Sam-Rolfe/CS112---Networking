@@ -19,6 +19,7 @@ typedef struct CacheEntry{
     unsigned char *server_response;
     size_t server_response_size;
     struct timespec time_added;
+    struct timespec time_accessed;
     int max_age;
 } CacheEntry;
 
