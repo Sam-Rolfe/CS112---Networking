@@ -22,8 +22,8 @@
 #define BUFFER_MAX_SIZE 10*1024*1024  // Confirm size
 #define HTTP_HEADER_MAX_SIZE 2000
 
-#define INITIAL_BUFFER_SIZE 1024*1024
-#define BUFFER_INCREMENT_FACTOR 2 
+#define INITIAL_BUFFER_SIZE 1024*1024  
+#define BUFFER_INCREMENT_FACTOR 4
 
 //----FUNCTIONS------------------------------------------------------------------------------------
 unsigned char *read_stream(int socket, size_t *total_size) {
@@ -34,9 +34,11 @@ unsigned char *read_stream(int socket, size_t *total_size) {
 
     while(bytes_read = read(socket, buffer + *total_size, buffer_size - *total_size)){
         *total_size += bytes_read;
+        printf("Total bytes read: %d\n", (int) *total_size);
 
         // If buffer is full, expand it by BUFFER_INCREMENT_FACTOR
         if(*total_size == buffer_size) {
+            printf("Doubling buffer\n");
             buffer_size = buffer_size * BUFFER_INCREMENT_FACTOR;
             unsigned char *temp = realloc(buffer, buffer_size);
             if (temp == NULL) {
@@ -57,7 +59,9 @@ unsigned char *proxy_request(int server_socket, char* buffer, char* url, Cache* 
     // Write request to server
     write(server_socket, buffer, strlen(buffer));
     // Read response from server and insert into cache
+    printf("Prior read_stream\n");
     unsigned char *server_response = read_stream(server_socket, server_response_size);
+    printf("After read_stream\n");
     cache_insert(cache, url, server_response, server_response_size);
     // Return copy of response
     unsigned char *server_response_copy = malloc(*server_response_size);
@@ -197,6 +201,7 @@ int main(int argc, char *argv[]) {
                 close(server_socket);
                 continue;
             }
+            printf("Connected to server\n");
 
             // Send request to server, add response to cache, and return copy 
             // of response to client

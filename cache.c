@@ -45,7 +45,7 @@ void cache_insert(Cache* cache, char* url, unsigned char *server_response, size_
     cache->entries[cache->size] = cache_entry;
     cache->size += 1;
     printf("Updating cache size to: %d\n", cache->size);
-    printf("Cache capacity: %d\n\n", cache->capacity);
+    printf("Cache capacity: %d\n", cache->capacity);
 }
 
 // Identify node to be evicted and evict
