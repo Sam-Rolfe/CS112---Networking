@@ -30,7 +30,6 @@ CacheEntry *CacheEntry_create(char* url, unsigned char* server_response, size_t 
     cache_entry->max_age = get_max_age(server_response);
     clock_gettime(CLOCK_REALTIME, &(cache_entry->time_added));
     clock_gettime(CLOCK_REALTIME, &(cache_entry->time_accessed));
-    printf("Creating new cache entry. max-age: %d\n", cache_entry->max_age);
     return cache_entry;
 }
 
